@@ -2,6 +2,9 @@
 
 timedatectl set-ntp true
 USERNAME=pix
+# PASSWORD is exported by naGINI: it is the script ID (last URL path segment). It is set as the
+# initial password below and expired, so it must be changed at the first login.
+# Script output is logged to /var/log/naGINI_*.log on the installed system - never echo secrets.
 
 sgdisk -o ${DISK}
 sgdisk -n 1:0:1024MiB ${DISK}

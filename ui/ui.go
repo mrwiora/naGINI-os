@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"nagini/config"
 	"nagini/system"
 )
@@ -42,24 +44,31 @@ func ConfirmWithUser(info config.SystemInfo) bool {
 
 // GetScriptURL prompts user for the full script URL
 func GetScriptURL() (string, error) {
-	fmt.Print("Enter the script URL (e.g., https://script.0x7e.eu/b343cbd0): ")
+	fmt.Print("Enter the script URL (e.g., https://script.0x7e.eu/s/b343cbd0): ")
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return "", fmt.Errorf("error reading script URL: %v", err)
 	}
 
-	scriptURL := strings.TrimSpace(input)
-	if scriptURL == "" {
-		return "", fmt.Errorf("script URL cannot be empty")
-	}
+	// Validation (scheme, host) is done by config.ValidateScriptURL in the caller
+	return strings.TrimSuffix(strings.TrimSpace(input), "/"), nil
+}
 
-	// Basic validation - must look like a URL
-	if !strings.HasPrefix(scriptURL, "http://") && !strings.HasPrefix(scriptURL, "https://") {
-		return "", fmt.Errorf("script URL must start with http:// or https://")
-	}
+// StdinIsTerminal reports whether stdin is an interactive terminal
+func StdinIsTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
-	return scriptURL, nil
+// PromptPassphrase reads the decryption passphrase from the terminal without echo
+func PromptPassphrase() (string, error) {
+	fmt.Print("Enter script passphrase: ")
+	passphrase, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return "", fmt.Errorf("error reading passphrase: %v", err)
+	}
+	return string(passphrase), nil
 }
 
 // GetPassword uses script ID as password
@@ -68,6 +77,11 @@ func GetPassword(scriptID string) string {
 	password := scriptID
 	fmt.Printf("Using script ID as password: %s\n", password)
 	return password
+}
+
+// ShowInsecureWarning prints a prominent security warning
+func ShowInsecureWarning(message string) {
+	fmt.Printf("%sWARNING: %s%s\n", Red, message, Reset)
 }
 
 // ConfirmExecution asks user to confirm script execution

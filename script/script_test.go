@@ -1,6 +1,8 @@
 package script
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -92,5 +94,43 @@ echo "Installing Arch Linux..."
 
 	if metadata.TemplateVersion != "" {
 		t.Errorf("Expected empty TemplateVersion, got '%s'", metadata.TemplateVersion)
+	}
+}
+
+func TestDecryptRejectsPlaintext(t *testing.T) {
+	plain := []byte("#!/bin/bash\necho pwned\n")
+	if out, err := Decrypt(plain, "some-passphrase"); err == nil || out != nil {
+		t.Fatalf("expected error and no content, got %q, %v", out, err)
+	}
+}
+
+func TestDecryptRequiresPassphrase(t *testing.T) {
+	for _, content := range [][]byte{[]byte("#!/bin/bash\necho hi\n"), []byte("TkdOAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")} {
+		if out, err := Decrypt(content, ""); err == nil || out != nil {
+			t.Fatalf("expected error without passphrase, got %q, %v", out, err)
+		}
+	}
+}
+
+func TestCopyFileIsRootOnly(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.log")
+	dst := filepath.Join(dir, "dst.log")
+	if err := os.WriteFile(src, []byte("log"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Pre-existing world-readable destination must be tightened too
+	if err := os.WriteFile(dst, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyFile(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("expected mode 0600, got %o", info.Mode().Perm())
 	}
 }

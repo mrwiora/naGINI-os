@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 
 	"nagini/config"
 	"nagini/network"
@@ -108,29 +109,38 @@ func main() {
 	ui.ShowScriptSection()
 
 	// Get script URL
-	if cfg.ScriptURL != "" {
-		scriptID = cfg.GetScriptID()
-	} else {
-		var err error
+	if cfg.ScriptURL == "" {
 		scriptURL, err := ui.GetScriptURL()
 		if err != nil {
 			fmt.Printf("%sError getting script URL: %v%s\n", ui.Red, err, ui.Reset)
 			os.Exit(1)
 		}
-		// Update config with user-provided script URL
 		cfg.ScriptURL = scriptURL
-		scriptID = cfg.GetScriptID()
 	}
 
-	// Get password using script ID
-	password := ui.GetPassword(scriptID)
-
-	// Add password to environment variables
+	// The script ID (last URL path segment) is the initial password of the installed system
+	password := ui.GetPassword(cfg.GetScriptID())
 	os.Setenv("PASSWORD", password)
 
-	// Use the full script URL directly
 	scriptURL := cfg.GetScriptURL()
+	if err := config.ValidateScriptURL(scriptURL, cfg.InsecureHTTP); err != nil {
+		fmt.Printf("%sError: %v%s\n", ui.Red, err, ui.Reset)
+		os.Exit(1)
+	}
+	if strings.HasPrefix(scriptURL, "http://") {
+		ui.ShowInsecureWarning("script is downloaded over plain HTTP and can be tampered with in transit")
+	}
 	fmt.Printf("\nScript URL: %s%s%s\n", ui.Cyan, scriptURL, ui.Reset)
+
+	// Every script is encrypted with its own passphrase (shown once when it was published)
+	if cfg.Passphrase == "" && ui.StdinIsTerminal() {
+		passphrase, err := ui.PromptPassphrase()
+		if err != nil {
+			fmt.Printf("%s%v%s\n", ui.Red, err, ui.Reset)
+			os.Exit(1)
+		}
+		cfg.Passphrase = passphrase
+	}
 
 	// Download the script and get its hash and metadata
 	scriptContent, scriptHash, scriptMetadata, err := script.DownloadScript(scriptURL)
@@ -139,25 +149,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Decrypt if needed
-	decryptedContent, wasEncrypted, err := script.DecryptIfNeeded(scriptContent, cfg.Passphrase)
+	// Decrypt; there is no unencrypted mode, anything that does not decrypt is refused
+	scriptContent, err = script.Decrypt(scriptContent, cfg.Passphrase)
 	if err != nil {
 		fmt.Printf("%sError: %v%s\n", ui.Red, err, ui.Reset)
 		os.Exit(1)
 	}
-
-	// Use decrypted content for metadata parsing and execution
-	if wasEncrypted {
-		scriptContent = decryptedContent
-		// Recalculate hash for decrypted content
-		hash := sha256.Sum256(scriptContent)
-		scriptHash = hex.EncodeToString(hash[:])
-		// Re-parse metadata from decrypted content
-		scriptMetadata = script.ParseMetadata(scriptContent)
-	}
-
-	// Show encryption status if applicable
-	ui.ShowEncryptionStatus(wasEncrypted)
+	// Hash and metadata of the decrypted script
+	hash := sha256.Sum256(scriptContent)
+	scriptHash = hex.EncodeToString(hash[:])
+	scriptMetadata = script.ParseMetadata(scriptContent)
+	ui.ShowEncryptionStatus(true)
 
 	// Show script metadata to user
 	ui.ShowScriptMetadata(ui.ScriptMetadata{

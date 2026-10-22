@@ -65,28 +65,23 @@ func ParseMetadata(scriptContent []byte) ScriptMetadata {
 	return metadata
 }
 
-// DecryptIfNeeded checks if content is encrypted and decrypts it if passphrase is provided
-func DecryptIfNeeded(content []byte, passphrase string) ([]byte, bool, error) {
-	// Check if content appears to be encrypted (base64 encoded with proper length)
-	if !crypto.IsEncrypted(content) {
-		// Not encrypted, return as-is
-		return content, false, nil
-	}
-
-	// Content appears to be encrypted
+// Decrypt returns the script content that may be executed.
+//
+// Every script is encrypted; the content MUST decrypt successfully with the passphrase.
+// There is no unencrypted mode, so a swapped download can never bypass the encryption.
+func Decrypt(content []byte, passphrase string) ([]byte, error) {
 	if passphrase == "" {
-		return nil, true, fmt.Errorf("script appears to be encrypted but no passphrase provided (use -passphrase flag)")
+		return nil, fmt.Errorf("no passphrase provided (use NAGINI_PASSPHRASE, -passphrase or the interactive prompt)")
 	}
 
-	// Attempt to decrypt
-	fmt.Printf("%sDetected encrypted script, attempting to decrypt...%s\n", ui.Yellow, ui.Reset)
+	fmt.Printf("%sDecrypting script...%s\n", ui.Yellow, ui.Reset)
 	decrypted, err := crypto.Decrypt(string(content), passphrase)
 	if err != nil {
-		return nil, true, fmt.Errorf("failed to decrypt script: %v", err)
+		return nil, fmt.Errorf("failed to decrypt script: %v", err)
 	}
 
 	fmt.Printf("%sScript decrypted successfully%s\n", ui.Green, ui.Reset)
-	return decrypted, true, nil
+	return decrypted, nil
 }
 
 // DownloadScript downloads the script and returns its content, SHA256 hash, and metadata
@@ -143,8 +138,8 @@ func ExecuteScript(scriptContent []byte, disk, iface, interfaceMac, password str
 		return fmt.Errorf("failed to write script to temporary file: %v", err)
 	}
 
-	// Make the script executable
-	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+	// Make the script executable for root only
+	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
 		return fmt.Errorf("failed to make script executable: %v", err)
 	}
 
@@ -155,6 +150,11 @@ func ExecuteScript(scriptContent []byte, disk, iface, interfaceMac, password str
 	timestamp := time.Now().Unix()
 	logFileName := fmt.Sprintf("naGINI_%d.log", timestamp)
 	logFilePath := filepath.Join("/tmp", logFileName)
+
+	// Pre-create the log so it is only readable by root; script output may contain secrets
+	if f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
+		f.Close()
+	}
 
 	// Get partition suffixes based on disk type
 	partition1, partition2 := system.GetPartitionSuffix(disk)
@@ -198,11 +198,14 @@ func ExecuteScript(scriptContent []byte, disk, iface, interfaceMac, password str
 func postExecutionSteps(logFilePath, logFileName string) error {
 	fmt.Printf("\n%sPerforming post-execution steps...%s\n", ui.Yellow, ui.Reset)
 
-	// Step 1: Copy log file to /mnt
-	destLogPath := filepath.Join("/mnt", logFileName)
+	// Step 1: Copy log file to the installed system (root-only readable)
+	destLogDir := filepath.Join("/mnt", "var", "log")
+	destLogPath := filepath.Join(destLogDir, logFileName)
 	fmt.Printf("%sCopying log to %s...%s\n", ui.Cyan, destLogPath, ui.Reset)
 
-	if err := copyFile(logFilePath, destLogPath); err != nil {
+	if err := os.MkdirAll(destLogDir, 0755); err != nil {
+		fmt.Printf("%sWarning: Failed to create %s: %v%s\n", ui.Yellow, destLogDir, err, ui.Reset)
+	} else if err := copyFile(logFilePath, destLogPath); err != nil {
 		fmt.Printf("%sWarning: Failed to copy log file: %v%s\n", ui.Yellow, err, ui.Reset)
 		// Continue anyway
 	} else {
@@ -247,11 +250,16 @@ func copyFile(src, dst string) error {
 	}
 	defer sourceFile.Close()
 
-	destFile, err := os.Create(dst)
+	destFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer destFile.Close()
+
+	// OpenFile does not change the mode of an existing file
+	if err := destFile.Chmod(0600); err != nil {
+		return err
+	}
 
 	if _, err := io.Copy(destFile, sourceFile); err != nil {
 		return err

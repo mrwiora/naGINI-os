@@ -2,12 +2,9 @@ package script
 
 import (
 	"bufio"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,43 +79,6 @@ func Decrypt(content []byte, passphrase string) ([]byte, error) {
 
 	fmt.Printf("%sScript decrypted successfully%s\n", ui.Green, ui.Reset)
 	return decrypted, nil
-}
-
-// DownloadScript downloads the script and returns its content, SHA256 hash, and metadata
-func DownloadScript(url string) ([]byte, string, ScriptMetadata, error) {
-	fmt.Printf("%sDownloading script from %s...%s\n", ui.Yellow, url, ui.Reset)
-
-	// Create HTTP client with timeout
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	// Download the script
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, "", ScriptMetadata{}, fmt.Errorf("failed to download script: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", ScriptMetadata{}, fmt.Errorf("HTTP error: %s", resp.Status)
-	}
-
-	// Read the script content
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", ScriptMetadata{}, fmt.Errorf("failed to read script content: %v", err)
-	}
-
-	// Calculate SHA256 hash
-	hash := sha256.Sum256(content)
-	hashString := hex.EncodeToString(hash[:])
-
-	// Parse metadata from script content
-	metadata := ParseMetadata(content)
-
-	fmt.Printf("%sScript downloaded successfully (%d bytes)%s\n", ui.Green, len(content), ui.Reset)
-	return content, hashString, metadata, nil
 }
 
 // ExecuteScript executes the downloaded script content

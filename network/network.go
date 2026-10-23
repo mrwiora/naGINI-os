@@ -1,8 +1,11 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
+	"time"
 )
 
 // RunDHCPCD starts DHCP client on the specified interface in the background
@@ -42,4 +45,34 @@ func RunDHCPCD(iface string) error {
 	}
 
 	return nil
+}
+
+// WaitForTimeSync waits until systemd-timesyncd reports a synchronised clock, at most timeout.
+// HTTPS certificate validation fails with a wrong clock, so this runs before the download.
+// It never fails: without NTP access the download is attempted anyway.
+func WaitForTimeSync(timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	announced := false
+	for {
+		out, err := exec.Command("timedatectl", "show", "-p", "NTPSynchronized", "--value").Output()
+		if errors.Is(err, exec.ErrNotFound) {
+			return // no systemd-timedated; nothing to wait for
+		}
+		if err == nil && strings.TrimSpace(string(out)) == "yes" {
+			if announced {
+				fmt.Println("System clock synchronised")
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			fmt.Printf("Warning: system clock not synchronised via NTP (now %s); HTTPS may fail if it is wrong\n",
+				time.Now().UTC().Format(time.RFC3339))
+			return
+		}
+		if !announced {
+			fmt.Println("Waiting for NTP time synchronisation...")
+			announced = true
+		}
+		time.Sleep(time.Second)
+	}
 }

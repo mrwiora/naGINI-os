@@ -33,7 +33,7 @@ func ParseFlags() Config {
 
 	flag.StringVar(&config.Disk, "disk", "", "Target disk for installation (e.g. /dev/sda)")
 	flag.StringVar(&config.Interface, "interface", "", "Network interface to use (e.g. eth0 or MAC address aa:bb:cc:dd:ee:ff)")
-	flag.StringVar(&config.ScriptURL, "url", "", "Full script URL (e.g. https://script.0x7e.eu/s/b343cbd0)")
+	flag.StringVar(&config.ScriptURL, "url", "", "Full script URL (e.g. https://script.0x7e.eu/b343cbd0); the last path segment is the script ID")
 	flag.StringVar(&config.Passphrase, "passphrase", "", "Passphrase for decrypting the script (visible in the process list; prefer NAGINI_PASSPHRASE or the interactive prompt)")
 	flag.BoolVar(&config.ShowVersion, "version", false, "Show version information")
 	flag.BoolVar(&config.InsecureHTTP, "insecure-http", false, "Allow plain http:// script URLs (the script can be tampered with in transit)")
@@ -43,10 +43,10 @@ func ParseFlags() Config {
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  %s -disk /dev/sda -interface eth0 -url https://script.0x7e.eu/s/1a2b3c4d  # passphrase is prompted\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -interface aa:bb:cc:dd:ee:ff -url https://script.0x7e.eu/s/1234affe  # Using MAC address\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  NAGINI_PASSPHRASE=\"...\" %s -url https://script.0x7e.eu/s/1234affe  # Non-interactive passphrase\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -url https://script.0x7e.eu/s/1234affe  # Interactive mode for other parameters\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -disk /dev/sda -interface eth0 -url https://script.0x7e.eu/1a2b3c4d  # passphrase is prompted\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -interface aa:bb:cc:dd:ee:ff -url https://script.0x7e.eu/1234affe  # Using MAC address\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  NAGINI_PASSPHRASE=\"...\" %s -url https://script.0x7e.eu/1234affe  # Non-interactive passphrase\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -url https://script.0x7e.eu/1234affe  # Interactive mode for other parameters\n", os.Args[0])
 	}
 
 	flag.Parse()

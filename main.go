@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"nagini/config"
 	"nagini/network"
@@ -19,6 +20,8 @@ var VERSION = "dev"
 func main() {
 	// Always show version at startup
 	ui.ShowVersion(VERSION)
+
+	script.UserAgent = "naGINI/" + VERSION
 
 	// Parse command line flags first
 	cfg := config.ParseFlags()
@@ -142,8 +145,11 @@ func main() {
 		cfg.Passphrase = passphrase
 	}
 
-	// Download the script and get its hash and metadata
-	scriptContent, scriptHash, scriptMetadata, err := script.DownloadScript(scriptURL)
+	// TLS certificate checks need a correct clock; give NTP a moment after the network came up
+	network.WaitForTimeSync(30 * time.Second)
+
+	// Download the encrypted script
+	scriptContent, err := script.DownloadScript(scriptURL, cfg.InsecureHTTP)
 	if err != nil {
 		fmt.Printf("%sError downloading script: %v%s\n", ui.Red, err, ui.Reset)
 		os.Exit(1)
@@ -157,8 +163,8 @@ func main() {
 	}
 	// Hash and metadata of the decrypted script
 	hash := sha256.Sum256(scriptContent)
-	scriptHash = hex.EncodeToString(hash[:])
-	scriptMetadata = script.ParseMetadata(scriptContent)
+	scriptHash := hex.EncodeToString(hash[:])
+	scriptMetadata := script.ParseMetadata(scriptContent)
 	ui.ShowEncryptionStatus(true)
 
 	// Show script metadata to user

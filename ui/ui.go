@@ -44,7 +44,7 @@ func ConfirmWithUser(info config.SystemInfo) bool {
 
 // GetScriptURL prompts user for the full script URL
 func GetScriptURL() (string, error) {
-	fmt.Print("Enter the script URL (e.g., https://script.0x7e.eu/s/b343cbd0): ")
+	fmt.Print("Enter the script URL (e.g., https://script.0x7e.eu/b343cbd0): ")
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
 	if err != nil {

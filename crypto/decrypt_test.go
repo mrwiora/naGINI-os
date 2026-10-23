@@ -85,3 +85,16 @@ func TestDecryptPublisherVector(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// webVector was produced by naGINI-web/static/crypto.js NaginiCrypto.encrypt("echo from-nagini-web\n", "correct horse battery")
+const webVector = "TkdOAvyKq7jPnaY/fEdgbRfKP9qLn6B8x68LqAP+kSrxMAHoNWi08e0OYtFjlj3UtkwbT9HZTLMeppOTCGkD/K5U28iL"
+
+func TestDecryptNaginiWebVector(t *testing.T) {
+	got, err := Decrypt(webVector, "correct horse battery")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != "echo from-nagini-web\n" {
+		t.Errorf("got %q", got)
+	}
+}

@@ -43,7 +43,7 @@ func Decrypt(encryptedBase64, passphrase string) ([]byte, error) {
 	}
 
 	if !bytes.HasPrefix(combined, v2Header) {
-		return nil, fmt.Errorf("not an encrypted naGINI script (missing \"NGN\" v2 header)")
+		return nil, fmt.Errorf("not an encrypted naGINI script (missing \"NGN\" v2 header; scripts published in the old format must be published again)")
 	}
 	combined = combined[len(v2Header):]
 
